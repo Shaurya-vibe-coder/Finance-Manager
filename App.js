@@ -18,6 +18,7 @@ import {
     ActivityIndicator,
     Share,
     Linking,
+    BackHandler,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { auth, db } from './firebaseConfig';
@@ -232,10 +233,98 @@ function MainApp({ user }) {
     const [showEndDatePicker, setShowEndDatePicker] = useState(false);
     const [startDateText, setStartDateText] = useState('');
     const [endDateText, setEndDateText] = useState('');
+    const [showTransactionDetail, setShowTransactionDetail] = useState(false);
+    const [selectedTransactionDetail, setSelectedTransactionDetail] = useState(null);
 
     useEffect(() => {
         loadDataFromFirebase();
     }, [user]);
+
+    // Handle Android back button
+    useEffect(() => {
+        const backAction = () => {
+            // If any modal is open, close it
+            if (showTransactionDetail) {
+                setShowTransactionDetail(false);
+                setSelectedTransactionDetail(null);
+                return true;
+            }
+            if (showAddCustomer) {
+                setShowAddCustomer(false);
+                return true;
+            }
+            if (showAddTransaction) {
+                setShowAddTransaction(false);
+                return true;
+            }
+            if (showReport) {
+                setShowReport(false);
+                return true;
+            }
+            if (showProfile) {
+                setShowProfile(false);
+                return true;
+            }
+            if (showEditCustomer) {
+                setShowEditCustomer(false);
+                return true;
+            }
+            if (showEditTransaction) {
+                setShowEditTransaction(false);
+                return true;
+            }
+            if (showRecycleBin) {
+                setShowRecycleBin(false);
+                return true;
+            }
+            if (showCustomDateRange) {
+                setShowCustomDateRange(false);
+                return true;
+            }
+
+            // Navigate back through views
+            if (view === 'customer-detail' && selectedCustomer) {
+                setSelectedCustomer(null);
+                setView('customers');
+                return true;
+            }
+            if (view === 'customers' || view === 'transactions') {
+                setView('dashboard');
+                return true;
+            }
+
+            // If on dashboard, show exit confirmation
+            if (view === 'dashboard') {
+                Alert.alert(
+                    'Exit App',
+                    'Are you sure you want to exit?',
+                    [
+                        { text: 'Cancel', style: 'cancel', onPress: () => {} },
+                        { text: 'Exit', onPress: () => BackHandler.exitApp() }
+                    ]
+                );
+                return true;
+            }
+
+            return false;
+        };
+
+        const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+        return () => backHandler.remove();
+    }, [
+        view, 
+        selectedCustomer, 
+        showTransactionDetail,
+        showAddCustomer, 
+        showAddTransaction, 
+        showReport, 
+        showProfile, 
+        showEditCustomer, 
+        showEditTransaction, 
+        showRecycleBin,
+        showCustomDateRange
+    ]);
 
     const loadDataFromFirebase = async () => {
         try {
@@ -634,7 +723,11 @@ function MainApp({ user }) {
 
     return (
         <SafeAreaView style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor="#3B82F6" />
+            <StatusBar 
+                barStyle="light-content" 
+                backgroundColor="#3B82F6"
+                translucent={false}
+            />
 
             <View style={styles.header}>
                 <View style={styles.headerTop}>
@@ -1163,13 +1256,25 @@ function MainApp({ user }) {
                             )}
 
                             {filteredTransactions.map(txn => (
-                                <View key={txn.id} style={styles.transactionItem}>
+                                <TouchableOpacity 
+                                    key={txn.id} 
+                                    style={styles.transactionItem}
+                                    onPress={() => {
+                                        setSelectedTransactionDetail(txn);
+                                        setShowTransactionDetail(true);
+                                    }}
+                                    activeOpacity={0.7}
+                                >
                                     <View style={styles.transactionLeft}>
                                         <View style={[styles.transactionIcon, txn.type === 'credit' ? styles.creditIcon : styles.debitIcon]}>
                                             <Feather name={txn.type === 'credit' ? "trending-up" : "trending-down"} size={20} color={txn.type === 'credit' ? "#10B981" : "#EF4444"} />
                                         </View>
-                                        <View>
-                                            <Text style={styles.transactionDescription}>
+                                        <View style={styles.transactionTextContainer}>
+                                            <Text 
+                                                style={styles.transactionDescription}
+                                                numberOfLines={1}
+                                                ellipsizeMode="tail"
+                                            >
                                                 {txn.description || (txn.type === 'credit' ? 'Payment Received' : 'Payment Given')}
                                             </Text>
                                             <View style={styles.transactionDate}>
@@ -1184,19 +1289,8 @@ function MainApp({ user }) {
                                         <Text style={[styles.transactionAmount, txn.type === 'credit' ? styles.positiveAmount : styles.negativeAmount]}>
                                             {txn.type === 'credit' ? '+' : '-'}₹{txn.amount.toLocaleString()}
                                         </Text>
-                                        <View style={styles.transactionActions}>
-                                            <TouchableOpacity onPress={() => {
-                                                setEditingTransaction(txn);
-                                                setShowEditTransaction(true);
-                                            }}>
-                                                <Feather name="edit-2" size={18} color="#3B82F6" />
-                                            </TouchableOpacity>
-                                            <TouchableOpacity onPress={() => deleteTransaction(txn.id)}>
-                                                <Feather name="trash-2" size={18} color="#EF4444" />
-                                            </TouchableOpacity>
-                                        </View>
                                     </View>
-                                </View>
+                                </TouchableOpacity>
                             ))}
                             {filteredTransactions.length === 0 && (
                                 <Text style={styles.emptyText}>No transactions yet.</Text>
@@ -1227,14 +1321,26 @@ function MainApp({ user }) {
                             {filteredTransactions.map(txn => {
                                 const customer = customers.find(c => c.id === txn.customerId);
                                 return (
-                                    <View key={txn.id} style={styles.transactionItem}>
+                                    <TouchableOpacity 
+                                        key={txn.id} 
+                                        style={styles.transactionItem}
+                                        onPress={() => {
+                                            setSelectedTransactionDetail(txn);
+                                            setShowTransactionDetail(true);
+                                        }}
+                                        activeOpacity={0.7}
+                                    >
                                         <View style={styles.transactionLeft}>
                                             <View style={[styles.transactionIcon, txn.type === 'credit' ? styles.creditIcon : styles.debitIcon]}>
                                                 <Feather name={txn.type === 'credit' ? "trending-up" : "trending-down"} size={20} color={txn.type === 'credit' ? "#10B981" : "#EF4444"} />
                                             </View>
-                                            <View>
+                                            <View style={styles.transactionTextContainer}>
                                                 <Text style={styles.transactionCustomer}>{customer?.name || 'Unknown'}</Text>
-                                                <Text style={styles.transactionDescription}>
+                                                <Text 
+                                                    style={styles.transactionDescription}
+                                                    numberOfLines={1}
+                                                    ellipsizeMode="tail"
+                                                >
                                                     {txn.description || (txn.type === 'credit' ? 'Payment Received' : 'Payment Given')}
                                                 </Text>
                                                 <View style={styles.transactionDate}>
@@ -1249,11 +1355,8 @@ function MainApp({ user }) {
                                             <Text style={[styles.transactionAmount, txn.type === 'credit' ? styles.positiveAmount : styles.negativeAmount]}>
                                                 {txn.type === 'credit' ? '+' : '-'}₹{txn.amount.toLocaleString()}
                                             </Text>
-                                            <TouchableOpacity onPress={() => deleteTransaction(txn.id)}>
-                                                <Feather name="trash-2" size={18} color="#EF4444" />
-                                            </TouchableOpacity>
                                         </View>
-                                    </View>
+                                    </TouchableOpacity>
                                 );
                             })}
                             {filteredTransactions.length === 0 && (
@@ -1618,6 +1721,138 @@ function MainApp({ user }) {
                         )}
                     </ScrollView>
                 </SafeAreaView>
+            </Modal>
+
+            <Modal visible={showTransactionDetail} animationType="slide" transparent={true}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        {selectedTransactionDetail && (
+                            <>
+                                <View style={styles.modalHeader}>
+                                    <Text style={styles.modalTitle}>Transaction Details</Text>
+                                    <TouchableOpacity 
+                                        onPress={() => {
+                                            setShowTransactionDetail(false);
+                                            setSelectedTransactionDetail(null);
+                                        }}
+                                    >
+                                        <Feather name="x" size={24} color="#6B7280" />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <ScrollView style={styles.transactionDetailContent}>
+                                    {/* Transaction Type Badge */}
+                                    <View style={styles.transactionDetailBadge}>
+                                        <View style={[
+                                            styles.transactionTypeBadge,
+                                            selectedTransactionDetail.type === 'credit' ? styles.creditBadge : styles.debitBadge
+                                        ]}>
+                                            <Feather 
+                                                name={selectedTransactionDetail.type === 'credit' ? "trending-up" : "trending-down"} 
+                                                size={24} 
+                                                color={selectedTransactionDetail.type === 'credit' ? "#10B981" : "#EF4444"} 
+                                            />
+                                            <Text style={[
+                                                styles.transactionTypeBadgeText,
+                                                selectedTransactionDetail.type === 'credit' ? styles.creditText : styles.debitText
+                                            ]}>
+                                                {selectedTransactionDetail.type === 'credit' ? 'CREDIT' : 'DEBIT'}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    {/* Amount */}
+                                    <View style={styles.transactionDetailRow}>
+                                        <Text style={styles.transactionDetailLabel}>Amount</Text>
+                                        <Text style={[
+                                            styles.transactionDetailValue,
+                                            styles.transactionDetailAmount,
+                                            selectedTransactionDetail.type === 'credit' ? styles.positiveAmount : styles.negativeAmount
+                                        ]}>
+                                            {selectedTransactionDetail.type === 'credit' ? '+' : '-'}₹{selectedTransactionDetail.amount.toLocaleString()}
+                                        </Text>
+                                    </View>
+
+                                    {/* Customer Name (if viewing from all transactions) */}
+                                    {view === 'transactions' && (
+                                        <View style={styles.transactionDetailRow}>
+                                            <Text style={styles.transactionDetailLabel}>Customer</Text>
+                                            <Text style={styles.transactionDetailValue}>
+                                                {customers.find(c => c.id === selectedTransactionDetail.customerId)?.name || 'Unknown'}
+                                            </Text>
+                                        </View>
+                                    )}
+
+                                    {/* Date */}
+                                    <View style={styles.transactionDetailRow}>
+                                        <Text style={styles.transactionDetailLabel}>Date</Text>
+                                        <View style={styles.transactionDetailValueRow}>
+                                            <Feather name="calendar" size={16} color="#6B7280" />
+                                            <Text style={styles.transactionDetailValue}>
+                                                {new Date(selectedTransactionDetail.transactionDate || selectedTransactionDetail.createdAt).toLocaleDateString('en-IN', {
+                                                    day: '2-digit',
+                                                    month: 'short',
+                                                    year: 'numeric'
+                                                })}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    {/* Time */}
+                                    <View style={styles.transactionDetailRow}>
+                                        <Text style={styles.transactionDetailLabel}>Time</Text>
+                                        <View style={styles.transactionDetailValueRow}>
+                                            <Feather name="clock" size={16} color="#6B7280" />
+                                            <Text style={styles.transactionDetailValue}>
+                                                {new Date(selectedTransactionDetail.transactionDate || selectedTransactionDetail.createdAt).toLocaleTimeString('en-IN', {
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    {/* Description */}
+                                    <View style={styles.transactionDetailRowColumn}>
+                                        <Text style={styles.transactionDetailLabel}>Description</Text>
+                                        <View style={styles.transactionDetailDescriptionBox}>
+                                            <Text style={styles.transactionDetailDescriptionText}>
+                                                {selectedTransactionDetail.description || (selectedTransactionDetail.type === 'credit' ? 'Payment Received' : 'Payment Given')}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    {/* Action Buttons */}
+                                    <View style={styles.transactionDetailActions}>
+                                        <TouchableOpacity
+                                            style={styles.transactionDetailEditButton}
+                                            onPress={() => {
+                                                setShowTransactionDetail(false);
+                                                setEditingTransaction(selectedTransactionDetail);
+                                                setShowEditTransaction(true);
+                                            }}
+                                        >
+                                            <Feather name="edit-2" size={20} color="#fff" />
+                                            <Text style={styles.transactionDetailEditButtonText}>Edit Transaction</Text>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            style={styles.transactionDetailDeleteButton}
+                                            onPress={() => {
+                                                setShowTransactionDetail(false);
+                                                setSelectedTransactionDetail(null);
+                                                deleteTransaction(selectedTransactionDetail.id);
+                                            }}
+                                        >
+                                            <Feather name="trash-2" size={20} color="#fff" />
+                                            <Text style={styles.transactionDetailDeleteButtonText}>Delete Transaction</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </ScrollView>
+                            </>
+                        )}
+                    </View>
+                </View>
             </Modal>
         </SafeAreaView>
     );
@@ -2110,7 +2345,7 @@ const styles = StyleSheet.create({
     },
     header: {
         backgroundColor: '#3B82F6',
-        paddingTop: 10,
+        paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 10,
         paddingBottom: 15,
         paddingHorizontal: 16,
     },
@@ -3192,5 +3427,119 @@ const styles = StyleSheet.create({
     editIconButton: {
         marginTop: 4,
         padding: 4,
+    },
+    transactionTextContainer: {
+        flex: 1,
+        paddingRight: 8,
+    },
+    transactionDetailContent: {
+        paddingHorizontal: 16,
+        paddingVertical: 20,
+    },
+    transactionDetailBadge: {
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    transactionTypeBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 25,
+        gap: 8,
+    },
+    creditBadge: {
+        backgroundColor: '#D1FAE5',
+    },
+    debitBadge: {
+        backgroundColor: '#FEE2E2',
+    },
+    transactionTypeBadgeText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        letterSpacing: 1,
+    },
+    creditText: {
+        color: '#10B981',
+    },
+    debitText: {
+        color: '#EF4444',
+    },
+    transactionDetailRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    transactionDetailRowColumn: {
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    transactionDetailLabel: {
+        fontSize: 14,
+        color: '#6B7280',
+        fontWeight: '500',
+        marginBottom: 4,
+    },
+    transactionDetailValue: {
+        fontSize: 16,
+        color: '#1F2937',
+        fontWeight: '600',
+        marginLeft: 4,
+    },
+    transactionDetailAmount: {
+        fontSize: 24,
+        fontWeight: 'bold',
+    },
+    transactionDetailValueRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    transactionDetailDescriptionBox: {
+        backgroundColor: '#F9FAFB',
+        borderRadius: 8,
+        padding: 12,
+        marginTop: 8,
+    },
+    transactionDetailDescriptionText: {
+        fontSize: 14,
+        color: '#374151',
+        lineHeight: 20,
+    },
+    transactionDetailActions: {
+        marginTop: 24,
+        gap: 12,
+    },
+    transactionDetailEditButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#3B82F6',
+        paddingVertical: 14,
+        borderRadius: 8,
+        gap: 8,
+    },
+    transactionDetailEditButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    transactionDetailDeleteButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#EF4444',
+        paddingVertical: 14,
+        borderRadius: 8,
+        gap: 8,
+    },
+    transactionDetailDeleteButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
     },
 });
